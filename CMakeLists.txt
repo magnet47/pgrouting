@@ -62,7 +62,6 @@ else(PGROUTING_CORE_INCLUDE_DIR)
 endif(PGROUTING_CORE_INCLUDE_DIR)
 
 OPTION(WITH_TSP "Build TSP library" OFF)
-OPTION(WITH_DD "Build Driving distance library" OFF)
 
 IF(UNIX)
   SET(LIBRARY_INSTALL_PATH ${LIB_DIR})
@@ -87,8 +86,8 @@ IF(WIN32)
   LINK_LIBRARIES(postgres)
 ENDIF(WIN32)
 
-SET(CMAKE_C_FLAGS   "-O2 -g -lgmp -frounding-math")
-SET(CMAKE_CXX_FLAGS "-O2 -g -lgmp -frounding-math")
+SET(CMAKE_C_FLAGS   "-O2 -g -frounding-math")
+SET(CMAKE_CXX_FLAGS "-O2 -g -frounding-math")
 
 # Recurse into the subdirectories.  This does not actually
 # cause another cmake executable to run.  The same process will walk through
@@ -103,16 +102,4 @@ IF(WITH_TSP)
   INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES} ${GAUL_INCLUDE_DIR})
   ADD_SUBDIRECTORY(extra/tsp)
 ENDIF(WITH_TSP)
-
-IF(WITH_DD)
-  macro_optional_find_package(CGAL)
-  IF(NOT CGAL_FOUND)
-    message(FATAL ERROR " Please check your CGAL installation, or set correct path to CGAL_INCLUDE_DIR and CGAL_LIBRARIES.")
-  ENDIF(NOT CGAL_FOUND)
-  INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES} ${CGAL_INCLUDE_DIR})
-  ADD_SUBDIRECTORY(extra/driving_distance)
-ENDIF(WITH_DD)
-
-
-
 

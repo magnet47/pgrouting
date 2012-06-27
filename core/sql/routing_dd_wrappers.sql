@@ -51,23 +51,6 @@ BEGIN
      
      node_id := r.id;
       
-     --qq := '''srid='||srid||';POLYGON(('||x-distance||' '||y-distance
-     --             ||','||x-distance||' '||y+distance
-     --             ||','||x+distance||' '||y+distance
-     --             ||','||x+distance||' '||y-distance
-     --             ||','||x-distance||' '||y-distance||'))''';
-        
-     --q := 'select 1 as id,st_concavehull(st_collect('
-     --     ||'st_startpoint(st_geometryn(the_geom,1))),'
-     --     || target_percent ||','|| has_holes ||') as the_geom '
-     --     ||'from '|| table_name ||',driving_distance('
-     --     ||'''SELECT id,source,target,cost,reverse_cost from '
-     --     || table_name ||' where st_contains(ST_GeomFromEWKT('''
-     --     || qq ||'''),the_geom) = true'','
-     --     || node_id ||','|| distance/10 ||','
-     --     || directed ||','
-     --     || has_reverse_cost || ') where edge_id = id';
-      
     q := 'select st_concavehull(st_collect('||
          'st_startpoint(st_geometryn(the_geom,1))),'||target_percent||
          ','|| has_holes ||') as the_geom from ' || table_name ||
@@ -77,7 +60,7 @@ BEGIN
          ')''''::BOX3D,4326) && the_geom'','||node_id||','||distance/10||
          ','||directed || ',' || has_reverse_cost ||') where edge_id = id';
  
-     RAISE NOTICE 'Query: %', q;
+     --RAISE NOTICE 'Query: %', q;
      
      FOR r IN EXECUTE q LOOP     
         geom.gid      := 1;
