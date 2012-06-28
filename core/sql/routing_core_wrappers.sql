@@ -128,19 +128,21 @@ BEGIN
 	id :=0;
 	
 	FOR path_result IN EXECUTE 'SELECT gid,the_geom FROM ' ||
-          'shortest_path(''SELECT gid as id, source::integer, target::integer, ' || 
-          'length::double precision as cost FROM ' ||
-	  quote_ident(geom_table) || ''', ' || quote_literal(source) || 
-          ' , ' || quote_literal(target) || ' , false, false), ' || 
-          quote_ident(geom_table) || ' where edge_id = gid ' 
-        LOOP
+      'shortest_path(''SELECT gid as id, ' ||
+      'source::integer, target::integer, ' || 
+      'length::double precision as cost FROM ' ||
+	  quote_ident(geom_table) || ''', ' || 
+	  quote_literal(source)   || ' , ' || 
+	  quote_literal(target)   || ' , false, false), ' || 
+      quote_ident(geom_table) || ' where edge_id = gid ' 
+    LOOP
 
-                 geom.gid      := path_result.gid;
-                 geom.the_geom := path_result.the_geom;
-		 id := id+1;
-		 geom.id       := id;
+      geom.gid      := path_result.gid;
+      geom.the_geom := path_result.the_geom;
+	  id            := id+1;
+	  geom.id       := id;
                  
-                 RETURN NEXT geom;
+      RETURN NEXT geom;
 
 	END LOOP;
 	RETURN;
@@ -156,7 +158,8 @@ LANGUAGE 'plpgsql' VOLATILE STRICT;
 -- Last changes: 14.02.2008
 -----------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dijkstra_sp_directed(
-       geom_table varchar, source int4, target int4, dir boolean, rc boolean) 
+       geom_table varchar, source int4, target int4, 
+       dir boolean, rc boolean) 
        RETURNS SETOF GEOMS AS
 $$
 DECLARE 
@@ -172,25 +175,28 @@ BEGIN
 	id :=0;
 	
 	query := 'SELECT gid,the_geom FROM ' ||
-          'shortest_path(''SELECT gid as id, source::integer, target::integer, ' || 
-          'length::double precision as cost ';
+             'shortest_path(''SELECT gid as id, source::integer, ' || 
+             'target::integer,length::double precision as cost ';
 	  
-	IF rc THEN query := query || ', reverse_cost ';  
+	IF rc THEN 
+	   query := query || ', reverse_cost ';  
 	END IF;
 	
-	query := query || 'FROM ' ||  quote_ident(geom_table) || ''', ' || quote_literal(source) || 
-          ' , ' || quote_literal(target) || ' , '''||text(dir)||''', '''||text(rc)||'''), ' || 
-          quote_ident(geom_table) || ' where edge_id = gid ';
+	query := query || 'FROM ' ||  quote_ident(geom_table) || ''', ' || 
+	         quote_literal(source) || ' , ' || 
+	         quote_literal(target) || ' , '''||
+	         text(dir)||''', '''||text(rc)||'''), ' || 
+	         quote_ident(geom_table) || ' where edge_id = gid ';
 
 	FOR path_result IN EXECUTE query
         LOOP
 
-                 geom.gid      := path_result.gid;
-                 geom.the_geom := path_result.the_geom;
-		 id := id+1;
-		 geom.id       := id;
+          geom.gid      := path_result.gid;
+          geom.the_geom := path_result.the_geom;
+		  id            := id+1;
+		  geom.id       := id;
                  
-                 RETURN NEXT geom;
+          RETURN NEXT geom;
 
 	END LOOP;
 	RETURN;
@@ -211,10 +217,10 @@ CREATE OR REPLACE FUNCTION astar_sp_delta(
        RETURNS SETOF GEOMS AS
 $$
 DECLARE 
-        geom_table ALIAS FOR $1;
-	sourceid ALIAS FOR $2;
-	targetid ALIAS FOR $3;
-	delta ALIAS FOR $4;
+    geom_table ALIAS FOR $1;
+	sourceid   ALIAS FOR $2;
+	targetid   ALIAS FOR $3;
+	delta      ALIAS FOR $4;
 
 	rec record;
 	r record;
@@ -229,20 +235,21 @@ BEGIN
 	id :=0;
 
 	FOR path_result IN EXECUTE 'SELECT gid,the_geom FROM ' || 
-           'astar_sp_delta_directed(''' || 
-           quote_ident(geom_table) || ''', ' || quote_literal(sourceid) || ', ' || 
+       'astar_sp_delta_directed(''' || 
+       quote_ident(geom_table) || ''', ' || quote_literal(sourceid) || ', ' || 
 	   quote_literal(targetid) || ', ' || delta || ', false, false)'
-        LOOP
+    LOOP
 
-                 geom.gid      := path_result.gid;
-                 geom.the_geom := path_result.the_geom;
-		 id := id+1;
-		 geom.id       := id;
+       geom.gid      := path_result.gid;
+       geom.the_geom := path_result.the_geom;
+	   id            := id+1;
+       geom.id       := id;
                  
-                 RETURN NEXT geom;
+       RETURN NEXT geom;
 
-        END LOOP;
-        RETURN;
+    END LOOP;
+    
+    RETURN;
 END;
 $$
 LANGUAGE 'plpgsql' VOLATILE STRICT; 
@@ -260,12 +267,12 @@ CREATE OR REPLACE FUNCTION astar_sp_delta_directed(
        RETURNS SETOF GEOMS AS
 $$
 DECLARE 
-        geom_table ALIAS FOR $1;
-	sourceid ALIAS FOR $2;
-	targetid ALIAS FOR $3;
-	delta ALIAS FOR $4;
-	dir ALIAS FOR $5;
-	rc ALIAS FOR $6;
+    geom_table ALIAS FOR $1;
+	sourceid   ALIAS FOR $2;
+	targetid   ALIAS FOR $3;
+	delta      ALIAS FOR $4;
+	dir        ALIAS FOR $5;
+	rc         ALIAS FOR $6;
 
 	rec record;
 	r record;
@@ -331,6 +338,7 @@ BEGIN
             targetid ||  ' or target='||targetid||' limit 1'
         LOOP
 	END LOOP;
+	
 	target_y := rec.target_y;
 
 	FOR rec IN EXECUTE 'SELECT CASE WHEN '||source_x||'<'||target_x||
@@ -363,35 +371,27 @@ BEGIN
 	IF rc THEN query := query || ' , reverse_cost ';  
 	END IF;
 	  
-	query := query || 'FROM ' || quote_ident(geom_table) || ' where setSRID(''''BOX3D('||
-          ll_x-delta||' '||ll_y-delta||','||ur_x+delta||' '||
-          ur_y+delta||')''''::BOX3D, ' || srid || ') && the_geom'', ' || 
+	query := query || 'FROM ' || quote_ident(geom_table) || 
+	      ' where setSRID(''''BOX3D('||
+          ll_x-delta||' '|| ll_y-delta||','||
+          ur_x+delta||' '|| ur_y+delta||')''''::BOX3D, ' || 
+          srid || ') && the_geom'', ' || 
           quote_literal(sourceid) || ' , ' || 
-          quote_literal(targetid) || ' , '''||text(dir)||''', '''||text(rc)||''' ),' || 
+          quote_literal(targetid) || ' , '''||
+          text(dir)||''', '''||text(rc)||''' ),' || 
           quote_ident(geom_table) || ' where edge_id = gid ';
 	  
 	FOR path_result IN EXECUTE query
         LOOP
-                 geom.gid      := path_result.gid;
-                 geom.the_geom := path_result.the_geom;
-		 id := id+1;
-		 geom.id       := id;
+            geom.gid      := path_result.gid;
+            geom.the_geom := path_result.the_geom;
+		    id            := id+1;
+		    geom.id       := id;
                  
-                 RETURN NEXT geom;
---
---                v_id = path_result.vertex_id;
---                e_id = path_result.edge_id;
+            RETURN NEXT geom;
 
---                FOR r IN EXECUTE 'SELECT gid, the_geom FROM ' || 
---                      quote_ident(geom_table) || '  WHERE gid = ' || 
---                      quote_literal(e_id) LOOP
---                        geom.gid := r.gid;
---                        geom.the_geom := r.the_geom;
---                        RETURN NEXT geom;
---                END LOOP;
-
-        END LOOP;
-        RETURN;
+   END LOOP;
+   RETURN;
 END;
 $$
 LANGUAGE 'plpgsql' VOLATILE STRICT; 
@@ -411,10 +411,10 @@ CREATE OR REPLACE FUNCTION astar_sp_delta_cc(
        RETURNS SETOF GEOMS AS
 $$
 DECLARE 
-        geom_table ALIAS FOR $1;
-	sourceid ALIAS FOR $2;
-	targetid ALIAS FOR $3;
-	delta ALIAS FOR $4;
+    geom_table  ALIAS FOR $1;
+	sourceid    ALIAS FOR $2;
+	targetid    ALIAS FOR $3;
+	delta       ALIAS FOR $4;
 	cost_column ALIAS FOR $5;
 
 	rec record;
@@ -428,22 +428,24 @@ DECLARE
 BEGIN
 	
 	id :=0;
+	
 	FOR path_result IN EXECUTE 'SELECT gid,the_geom FROM ' || 
            'astar_sp_delta_cc_directed(''' || 
-           quote_ident(geom_table) || ''', ' || quote_literal(sourceid) || ', ' || 
-	   quote_literal(targetid) || ', ' || delta || ',' || 
-	   quote_literal(cost_column) || ', false, false)'
-        LOOP
+           quote_ident(geom_table) || ''', ' || 
+           quote_literal(sourceid) || ', ' || 
+	       quote_literal(targetid) || ', ' || delta || ',' || 
+	       quote_literal(cost_column) || ', false, false)'
+    LOOP
 
-                 geom.gid      := path_result.gid;
-                 geom.the_geom := path_result.the_geom;
-		 id := id+1;
-		 geom.id       := id;
+           geom.gid      := path_result.gid;
+           geom.the_geom := path_result.the_geom;
+		   id            := id+1;
+		   geom.id       := id;
                  
-                 RETURN NEXT geom;
+           RETURN NEXT geom;
 
-        END LOOP;
-        RETURN;
+    END LOOP;
+    RETURN;
 END;
 $$
 LANGUAGE 'plpgsql' VOLATILE STRICT; 
@@ -462,13 +464,13 @@ CREATE OR REPLACE FUNCTION astar_sp_delta_cc_directed(
        RETURNS SETOF GEOMS AS
 $$
 DECLARE 
-        geom_table ALIAS FOR $1;
-	sourceid ALIAS FOR $2;
-	targetid ALIAS FOR $3;
-	delta ALIAS FOR $4;
+    geom_table  ALIAS FOR $1;
+	sourceid    ALIAS FOR $2;
+	targetid    ALIAS FOR $3;
+	delta       ALIAS FOR $4;
 	cost_column ALIAS FOR $5;
-	dir ALIAS FOR $6;
-	rc ALIAS FOR $7;
+	dir         ALIAS FOR $6;
+	rc          ALIAS FOR $7;
 
 	rec record;
 	r record;
@@ -567,25 +569,27 @@ BEGIN
 	IF rc THEN query := query || ' , reverse_cost ';
 	END IF;
 	  
-	query := query || 'FROM ' || quote_ident(geom_table) || ' where setSRID(''''BOX3D('||
+	query := query || 'FROM ' || quote_ident(geom_table) || 
+	      ' where setSRID(''''BOX3D('||
           ll_x-delta||' '||ll_y-delta||','||ur_x+delta||' '||
           ur_y+delta||')''''::BOX3D, ' || srid || ') && the_geom'', ' || 
           quote_literal(sourceid) || ' , ' || 
-          quote_literal(targetid) || ' , '''||text(dir)||''', '''||text(rc)||''' ),' || 
+          quote_literal(targetid) || ' , '''||
+          text(dir)||''', '''||text(rc)||''' ),' || 
           quote_ident(geom_table) || ' where edge_id = gid ';
 	
 	FOR path_result IN EXECUTE query
         LOOP
 
-                 geom.gid      := path_result.gid;
-                 geom.the_geom := path_result.the_geom;
-		 id := id+1;
+         geom.gid      := path_result.gid;
+         geom.the_geom := path_result.the_geom;
+		 id            := id+1;
 		 geom.id       := id;
                  
-                 RETURN NEXT geom;
+         RETURN NEXT geom;
 
-        END LOOP;
-        RETURN;
+    END LOOP;
+    RETURN;
 END;
 $$
 LANGUAGE 'plpgsql' VOLATILE STRICT; 
@@ -604,10 +608,10 @@ CREATE OR REPLACE FUNCTION dijkstra_sp_delta(
        RETURNS SETOF GEOMS AS
 $$
 DECLARE 
-        geom_table ALIAS FOR $1;
-	sourceid ALIAS FOR $2;
-	targetid ALIAS FOR $3;
-	delta ALIAS FOR $4;
+    geom_table ALIAS FOR $1;
+	sourceid   ALIAS FOR $2;
+	targetid   ALIAS FOR $3;
+	delta      ALIAS FOR $4;
 
 	rec record;
 	r record;
@@ -620,20 +624,22 @@ DECLARE
 BEGIN
 	
 	id :=0;
+	
 	FOR path_result IN EXECUTE 'SELECT gid,the_geom FROM ' || 
            'dijkstra_sp_delta_directed(''' || 
-           quote_ident(geom_table) || ''', ' || quote_literal(sourceid) || ', ' || 
-	   quote_literal(targetid) || ', ' || delta || ', false, false)'
-        LOOP
-                 geom.gid      := path_result.gid;
-                 geom.the_geom := path_result.the_geom;
-		 id := id+1;
-		 geom.id       := id;
+           quote_ident(geom_table) || ''', ' || 
+           quote_literal(sourceid) || ', ' || 
+	       quote_literal(targetid) || ', ' || delta || ', false, false)'
+    LOOP
+           geom.gid      := path_result.gid;
+           geom.the_geom := path_result.the_geom;
+		   id            := id+1;
+		   geom.id       := id;
                  
-                 RETURN NEXT geom;
+           RETURN NEXT geom;
 
-        END LOOP;
-        RETURN;
+    END LOOP;
+    RETURN;
 END;
 $$
 LANGUAGE 'plpgsql' VOLATILE STRICT; 
@@ -746,30 +752,37 @@ BEGIN
 	ur_y := rec.ur_y;
 
 	query := 'SELECT gid,the_geom FROM ' || 
-          'shortest_path(''SELECT gid as id, source::integer, target::integer, ' || 
+          'shortest_path(''SELECT gid as id, ' || 
+          'source::integer, target::integer, ' || 
           'length::double precision as cost ';
 	  
 	IF rc THEN query := query || ' , reverse_cost ';
 	END IF;
 
-	query := query || ' FROM ' || quote_ident(geom_table) || ' where setSRID(''''BOX3D('||
-          ll_x-delta||' '||ll_y-delta||','||ur_x+delta||' '||
-          ur_y+delta||')''''::BOX3D, ' || srid || ') && the_geom'', ' || 
+	query := query || ' FROM ' || quote_ident(geom_table) || 
+	      ' where setSRID(''''BOX3D(' ||
+          ll_x-delta||' '|| ll_y-delta ||',' ||
+          ur_x+delta||' '|| ur_y+delta ||')''''::BOX3D, ' || 
+          srid || ') && the_geom'', ' || 
           quote_literal(sourceid) || ' , ' || 
-          quote_literal(targetid) || ' , '''||text(dir)||''', '''||text(rc)||''' ), ' ||
+          quote_literal(targetid) || ' , '''||
+          text(dir)||''', '''||
+          text(rc )||''' ), ' ||
           quote_ident(geom_table) || ' where edge_id = gid ';
 	  
 	FOR path_result IN EXECUTE query
         LOOP
-                 geom.gid      := path_result.gid;
-                 geom.the_geom := path_result.the_geom;
-		 id := id+1;
-		 geom.id       := id;
                  
-                 RETURN NEXT geom;
+        geom.gid      := path_result.gid;
+        geom.the_geom := path_result.the_geom;
+		id            := id+1;
+		geom.id       := id;
+                 
+        RETURN NEXT geom;
 
-        END LOOP;
-        RETURN;
+    END LOOP;
+    RETURN;
+    
 END;
 $$
 LANGUAGE 'plpgsql' VOLATILE STRICT; 
@@ -789,9 +802,9 @@ CREATE OR REPLACE FUNCTION astar_sp_bbox(
        RETURNS SETOF GEOMS AS
 $$
 DECLARE 
-        geom_table ALIAS FOR $1;
-	sourceid ALIAS FOR $2;
-	targetid ALIAS FOR $3;
+    geom_table ALIAS FOR $1;
+	sourceid   ALIAS FOR $2;
+	targetid   ALIAS FOR $3;
 	ll_x ALIAS FOR $4;
 	ll_y ALIAS FOR $5;
 	ur_x ALIAS FOR $6;
@@ -812,20 +825,21 @@ BEGIN
 	id :=0;
 	FOR path_result IN EXECUTE 'SELECT gid,the_geom FROM ' || 
            'astar_sp_bbox_directed(''' || 
-           quote_ident(geom_table) || ''', ' || quote_literal(sourceid) || ', ' || 
-	   quote_literal(targetid) || ', ' || ll_x || ', ' || ll_y || ', ' ||
-	   ur_x || ', ' || ur_y || ', false, false)'
-        LOOP
+           quote_ident(geom_table) || ''', ' || 
+           quote_literal(sourceid) || ', '   || 
+	       quote_literal(targetid) || ', ' || ll_x || ', ' || ll_y || ', ' ||
+	       ur_x || ', ' || ur_y || ', false, false)'
+    LOOP
 
-               geom.gid      := path_result.gid;
-               geom.the_geom := path_result.the_geom;
-               id := id+1;
+           geom.gid      := path_result.gid;
+           geom.the_geom := path_result.the_geom;
+           id            := id+1;
 	       geom.id       := id;
                  
-               RETURN NEXT geom;
+           RETURN NEXT geom;
 
-        END LOOP;
-        RETURN;
+    END LOOP;
+    RETURN;
 END;
 $$
 LANGUAGE 'plpgsql' VOLATILE STRICT; 
@@ -844,15 +858,15 @@ CREATE OR REPLACE FUNCTION astar_sp_bbox_directed(
        RETURNS SETOF GEOMS AS
 $$
 DECLARE 
-        geom_table ALIAS FOR $1;
-	sourceid ALIAS FOR $2;
-	targetid ALIAS FOR $3;
+    geom_table ALIAS FOR $1;
+	sourceid   ALIAS FOR $2;
+	targetid   ALIAS FOR $3;
 	ll_x ALIAS FOR $4;
 	ll_y ALIAS FOR $5;
 	ur_x ALIAS FOR $6;
 	ur_y ALIAS FOR $7;
-	dir ALIAS FOR $8;
-	rc ALIAS FOR $9;
+	dir ALIAS  FOR $8;
+	rc ALIAS   FOR $9;
 
 	rec record;
 	r record;
@@ -886,23 +900,24 @@ BEGIN
 	END IF;
 	   
 	query := query || 'FROM ' || 
-           quote_ident(geom_table) || ' where setSRID(''''BOX3D('||ll_x||' '||
-           ll_y||','||ur_x||' '||ur_y||')''''::BOX3D, ' || srid || 
-	   ') && the_geom'', ' || quote_literal(sourceid) || ' , ' || 
-           quote_literal(targetid) || ' , '''||text(dir)||''', '''||text(rc)||''' ),'  ||
+           quote_ident(geom_table) || ' where setSRID(''''BOX3D(' ||
+           ll_x||' '|| ll_y||','||ur_x||' '||ur_y||')''''::BOX3D, ' || 
+           srid || ') && the_geom'', ' || quote_literal(sourceid) || ' , ' || 
+           quote_literal(targetid) || ' , '''||text(dir)||''', '''||
+           text(rc)||''' ),'  ||
            quote_ident(geom_table) || ' where edge_id = gid ';
 	
 	FOR path_result IN EXECUTE query
         LOOP
-               geom.gid      := path_result.gid;
-               geom.the_geom := path_result.the_geom;
-               id := id+1;
+           geom.gid      := path_result.gid;
+           geom.the_geom := path_result.the_geom;
+           id            := id+1;
 	       geom.id       := id;
                  
-               RETURN NEXT geom;
+           RETURN NEXT geom;
 
-        END LOOP;
-        RETURN;
+     END LOOP;
+     RETURN;
 END;
 $$
 LANGUAGE 'plpgsql' VOLATILE STRICT; 
@@ -923,20 +938,21 @@ DECLARE
 BEGIN
 	
 	id :=0;
+	
 	FOR path_result IN EXECUTE 'SELECT gid,the_geom FROM ' || 
-           'astar_sp_directed(''' || 
-           quote_ident(geom_table) || ''', ' || quote_literal(source) || ', ' || 
+       'astar_sp_directed(''' || 
+       quote_ident(geom_table) || ''', ' || quote_literal(source) || ', ' || 
 	   quote_literal(target) || ', false, false)'
-        LOOP
-
+        
+	   LOOP
               geom.gid      := path_result.gid;
               geom.the_geom := path_result.the_geom;
-              id := id+1;
-	      geom.id       := id;
+              id            := id+1;
+	          geom.id       := id;
                  
               RETURN NEXT geom;
 
-        END LOOP;
+    END LOOP;
         RETURN;
 END;
 $$
@@ -978,21 +994,22 @@ BEGIN
 
 	query := query || 'FROM ' || quote_ident(geom_table) || ' '', ' || 
            quote_literal(source) || ' , ' || 
-           quote_literal(target) || ' , '''||text(dir)||''', '''||text(rc)||'''), ' ||
+           quote_literal(target) || ' , '''||
+           text(dir)||''', '''||text(rc)||'''), ' ||
            quote_ident(geom_table) || ' where edge_id = gid ';
 	   
 	FOR path_result IN EXECUTE query
         LOOP
 
-              geom.gid      := path_result.gid;
-              geom.the_geom := path_result.the_geom;
-              id := id+1;
-	      geom.id       := id;
+        geom.gid      := path_result.gid;
+        geom.the_geom := path_result.the_geom;
+        id            := id+1;
+	    geom.id       := id;
                  
-              RETURN NEXT geom;
+        RETURN NEXT geom;
 
-        END LOOP;
-        RETURN;
+    END LOOP;
+    RETURN;
 END;
 $$
 LANGUAGE 'plpgsql' VOLATILE STRICT; 
@@ -1009,13 +1026,13 @@ CREATE OR REPLACE FUNCTION shootingstar_sp(
        RETURNS SETOF GEOMS AS
 $$
 DECLARE 
-        geom_table ALIAS FOR $1;
-	sourceid ALIAS FOR $2;
-	targetid ALIAS FOR $3;
-	delta ALIAS FOR $4;
-        cost_column ALIAS FOR $5;
-	dir ALIAS FOR $6;
-	rc ALIAS FOR $7;
+    geom_table  ALIAS FOR $1;
+	sourceid    ALIAS FOR $2;
+	targetid    ALIAS FOR $3;
+	delta       ALIAS FOR $4;
+    cost_column ALIAS FOR $5;
+	dir         ALIAS FOR $6;
+	rc          ALIAS FOR $7;
 
 	rec record;
 	r record;
@@ -1110,24 +1127,28 @@ BEGIN
 	IF rc THEN query := query || ' , reverse_cost ';  
 	END IF;
 	  
-	query := query || 'FROM ' || quote_ident(geom_table) || ' where setSRID(''''BOX3D('||
-          ll_x-delta||' '||ll_y-delta||','||ur_x+delta||' '||
-          ur_y+delta||')''''::BOX3D, ' || srid || ') && the_geom'', ' || 
+	query := query || 'FROM ' || quote_ident(geom_table) || 
+	      ' where setSRID(''''BOX3D('||
+          ll_x-delta||' '|| ll_y-delta||','||
+          ur_x+delta||' '|| ur_y+delta||')''''::BOX3D, ' || 
+          srid || ') && the_geom'', ' || 
           quote_literal(sourceid) || ' , ' || 
-          quote_literal(targetid) || ' , '''||text(dir)||''', '''||text(rc)||''' ),' || 
+          quote_literal(targetid) || ' , '''||
+          text(dir)||''', '''||text(rc)||''' ),' || 
           quote_ident(geom_table) || ' where edge_id = gid ';
 	  
 	FOR path_result IN EXECUTE query
         LOOP
-                 geom.gid      := path_result.gid;
-                 geom.the_geom := path_result.the_geom;
-		 id := id+1;
-		 geom.id       := id;
+          
+        geom.gid      := path_result.gid;
+        geom.the_geom := path_result.the_geom;
+		id            := id+1;
+		geom.id       := id;
                  
-                 RETURN NEXT geom;
+        RETURN NEXT geom;
 
-        END LOOP;
-        RETURN;
+    END LOOP;
+    RETURN;
 END;
 $$
 LANGUAGE 'plpgsql' VOLATILE STRICT; 
