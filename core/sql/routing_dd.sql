@@ -16,7 +16,6 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 --
-
 -----------------------------------------------------------------------
 -- Core function for driving distance.
 -- The sql should return edge and vertex ids.
@@ -24,15 +23,6 @@
 CREATE OR REPLACE FUNCTION driving_distance(sql text, source_id integer, 
         distance float8,directed boolean, has_reverse_cost boolean)
         RETURNS SETOF path_result
-        AS '$libdir/librouting_dd'
+        AS '$libdir/librouting'
         LANGUAGE 'C' IMMUTABLE STRICT;
                         
------------------------------------------------------------------------
--- Core function for alpha shape computation.
--- The sql should return vertex ids and x,y values. Return ordered
--- vertex ids. 
------------------------------------------------------------------------
---CREATE OR REPLACE FUNCTION alphashape(sql text)
---        RETURNS SETOF vertex_result
---        AS '$libdir/librouting_dd'
---        LANGUAGE 'C' IMMUTABLE STRICT;
