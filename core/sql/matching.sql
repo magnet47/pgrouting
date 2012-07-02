@@ -7,8 +7,8 @@ CREATE TYPE link_point AS (id integer, name varchar);
 -- tbl - table name
 -------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION find_nearest_link_within_distance(point varchar, 
-	distance double precision, tbl varchar)
-	RETURNS INT AS
+    distance double precision, tbl varchar)
+    RETURNS INT AS
 $$
 DECLARE
     row record;
@@ -19,33 +19,40 @@ DECLARE
     
 BEGIN
 
-    FOR row IN EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' LOOP
+    FOR row IN EXECUTE 'select st_srid(the_geom) as srid from '||tbl
+        ||' limit 1' LOOP
     END LOOP;
-	srid:= row.srid;
+    srid:= row.srid;
     
     -- Getting x and y of the point
     
-    FOR row in EXECUTE 'select x(GeometryFromText('''||point||''', '||srid||')) as x' LOOP
+    FOR row in EXECUTE 'select st_x(st_GeometryFromText('''||point||''', '
+        ||srid||')) as x' LOOP
     END LOOP;
-	x:=row.x;
+    x:=row.x;
 
-    FOR row in EXECUTE 'select y(GeometryFromText('''||point||''', '||srid||')) as y' LOOP
+    FOR row in EXECUTE 'select st_y(st_GeometryFromText('''||point||''', '
+        ||srid||')) as y' LOOP
     END LOOP;
-	y:=row.y;
+    y:=row.y;
 
     -- Searching for a link within the distance
 
-    FOR row in EXECUTE 'select gid, distance(the_geom, GeometryFromText('''||point||''', '||srid||')) as dist from '||tbl||
-			    ' where setsrid(''BOX3D('||x-distance||' '||y-distance||', '||x+distance||' '||y+distance||')''::BOX3D, '||srid||')&&the_geom order by dist asc limit 1'
+    FOR row in EXECUTE 'select id, st_distance(the_geom, st_GeometryFromText('''
+        ||point||''', '||srid||')) as dist from '||tbl
+        ||' where st_setsrid(''BOX3D('
+        ||x-distance||' '||y-distance||', '||x+distance||' '||y+distance
+        ||')''::BOX3D, '
+        ||srid||')&&the_geom order by dist asc limit 1'
     LOOP
     END LOOP;
 
-    IF row.gid IS NULL THEN
-	    --RAISE EXCEPTION 'Data cannot be matched';
-	    RETURN NULL;
+    IF row.id IS NULL THEN
+        --RAISE EXCEPTION 'Data cannot be matched';
+        RETURN NULL;
     END IF;
 
-    RETURN row.gid;
+    RETURN row.id;
 
 END;
 $$
@@ -59,8 +66,8 @@ LANGUAGE 'plpgsql' VOLATILE STRICT;
 -------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION find_nearest_node_within_distance(point varchar, 
-	distance double precision, tbl varchar)
-	RETURNS INT AS
+    distance double precision, tbl varchar)
+    RETURNS INT AS
 $$
 DECLARE
     row record;
@@ -79,24 +86,30 @@ DECLARE
     
 BEGIN
 
-    FOR row IN EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' LOOP
+    FOR row IN EXECUTE 'select st_srid(the_geom) as srid from '||tbl
+        ||' limit 1' LOOP
     END LOOP;
-	srid:= row.srid;
+    srid:= row.srid;
 
     -- Getting x and y of the point
 
-    FOR row in EXECUTE 'select x(GeometryFromText('''||point||''', '||srid||')) as x' LOOP
+    FOR row in EXECUTE 'select x(st_GeometryFromText('''||point||''', '
+        ||srid||')) as x' LOOP
     END LOOP;
-	x:=row.x;
+    x:=row.x;
 
-    FOR row in EXECUTE 'select y(GeometryFromText('''||point||''', '||srid||')) as y' LOOP
+    FOR row in EXECUTE 'select y(st_GeometryFromText('''||point
+        ||''', '||srid||')) as y' LOOP
     END LOOP;
-	y:=row.y;
+    y:=row.y;
 
     -- Getting nearest source
 
-    FOR row in EXECUTE 'select source, distance(StartPoint(the_geom), GeometryFromText('''||point||''', '||srid||')) as dist from '||tbl||
-			    ' where setsrid(''BOX3D('||x-distance||' '||y-distance||', '||x+distance||' '||y+distance||')''::BOX3D, '||srid||')&&the_geom order by dist asc limit 1'
+    FOR row in EXECUTE 'select source, st_distance('
+       ||'st_StartPoint(st_GeometryN(the_geom,1)), st_GeometryFromText('''
+       ||point||''', '||srid||')) as dist from '||tbl||' where setsrid(''BOX3D('
+       ||x-distance||' '||y-distance||', '||x+distance||' '||y+distance
+       ||')''::BOX3D, '||srid||')&&the_geom order by dist asc limit 1'
     LOOP
     END LOOP;
     
@@ -105,8 +118,11 @@ BEGIN
 
     -- Getting nearest target
 
-    FOR row in EXECUTE 'select target, distance(EndPoint(the_geom), GeometryFromText('''||point||''', '||srid||')) as dist from '||tbl||
-			    ' where setsrid(''BOX3D('||x-distance||' '||y-distance||', '||x+distance||' '||y+distance||')''::BOX3D, '||srid||')&&the_geom order by dist asc limit 1'
+    FOR row in EXECUTE 'select target, st_distance('
+       ||'st_EndPoint(st_GeometryN(the_geom,1)), st_GeometryFromText('''
+       ||point||''', '||srid||')) as dist from '||tbl||' where setsrid(''BOX3D('
+       ||x-distance||' '||y-distance||', '||x+distance||' '||y+distance
+       ||')''::BOX3D, '||srid||')&&the_geom order by dist asc limit 1'
     LOOP
     END LOOP;
 
@@ -114,11 +130,12 @@ BEGIN
     
     d2:=row.dist;
     target:=row.target;
+    
     IF d1<d2 THEN
-	node:=source;
+    node:=source;
         d:=d1;
     ELSE
-	node:=target;
+    node:=target;
         d:=d2;
     END IF;
 
@@ -140,56 +157,71 @@ LANGUAGE 'plpgsql' VOLATILE STRICT;
 -- tbl - table name
 -------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION find_node_by_nearest_link_within_distance(point varchar, 
-	distance double precision, tbl varchar)
-	RETURNS link_point AS
+CREATE OR REPLACE FUNCTION find_node_by_nearest_link_within_distance(
+    point varchar,distance double precision, tbl varchar)
+    RETURNS link_point AS
 $$
 DECLARE
     row record;
     link integer;
+    
     d1 double precision;
     d2 double precision;
+    
     field varchar;
     res link_point;
     
     srid integer;
 BEGIN
 
-    FOR row IN EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' LOOP
+    FOR row IN EXECUTE 'select st_srid(the_geom) as srid from '||tbl
+        ||' limit 1' LOOP
     END LOOP;
-	srid:= row.srid;
+    srid:= row.srid;
 
 
     -- Searching for a nearest link
     
-    FOR row in EXECUTE 'select id from find_nearest_link_within_distance('''||point||''', '||distance||', '''||tbl||''') as id'
+    FOR row in EXECUTE 'select id from find_nearest_link_within_distance('''
+       ||point||''', '||distance||', '''||tbl||''') as id'
     LOOP
     END LOOP;
+    
     IF row.id is null THEN
         res.id = -1;
         RETURN res;
     END IF;
+    
     link:=row.id;
 
     -- Check what is nearer - source or target
     
-    FOR row in EXECUTE 'select distance((select StartPoint(the_geom) from '||tbl||' where gid='||link||'), GeometryFromText('''||point||''', '||srid||')) as dist'
+    FOR row in EXECUTE 'select st_distance((select '
+      ||'st_StartPoint(st_GeometryN(the_geom,1)) from '
+      ||tbl||' where id='||link||'), st_GeometryFromText('''
+      ||point||''', '||srid||')) as dist'
     LOOP
     END LOOP;
+    
     d1:=row.dist;
 
-    FOR row in EXECUTE 'select distance((select EndPoint(the_geom) from '||tbl||' where gid='||link||'), GeometryFromText('''||point||''', '||srid||')) as dist'
+    FOR row in EXECUTE 'select st_distance((select '
+       ||'st_EndPoint(st_GeometryN(the_geom,1)) from '
+       ||tbl||' where id='||link||'), st_GeometryFromText('''
+       ||point||''', '||srid||')) as dist'
     LOOP
     END LOOP;
+    
     d2:=row.dist;
 
     IF d1<d2 THEN
-	field:='source';
+        field:='source';
     ELSE
-	field:='target';
+        field:='target';
     END IF;
     
-    FOR row in EXECUTE 'select '||field||' as id, '''||field||''' as f from '||tbl||' where gid='||link
+    FOR row in EXECUTE 'select '||field||' as id, '''||field||''' as f from '
+       ||tbl||' where id='||link
     LOOP
     END LOOP;
         
@@ -214,14 +246,17 @@ LANGUAGE 'plpgsql' VOLATILE STRICT;
 -- rc - true if you have a reverse_cost column
 -------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION match_line_as_geometry(tbl varchar, line geometry, distance double precision, 
-						distance2 double precision, dir boolean, rc boolean)
-	RETURNS SETOF GEOMS AS
+CREATE OR REPLACE FUNCTION match_line_as_geometry(tbl varchar, line geometry, 
+    distance double precision, distance2 double precision, 
+    dir boolean, rc boolean)
+    RETURNS SETOF GEOMS AS
 $$
 DECLARE
     row record;
+    
     num integer;
-    i integer;
+    i   integer;
+    
     geom geoms;
     points integer[];
     
@@ -231,16 +266,18 @@ DECLARE
     
 BEGIN
 
-    FOR row IN EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' LOOP
+    FOR row IN EXECUTE 'select st_srid(the_geom) as srid from '||tbl
+        ||' limit 1' LOOP
     END LOOP;
-	srid:= row.srid;
+    srid:= row.srid;
 
 
-    FOR row IN EXECUTE 'select geometryType(GeometryFromText('''||astext(line)||''', '||srid||')) as type' LOOP
+    FOR row IN EXECUTE 'select st_geometryType(st_GeometryFromText('''
+      ||astext(line)||''', '||srid||')) as type' LOOP
     END LOOP;
     
-    IF row.type <> 'LINESTRING' THEN
-	RAISE EXCEPTION 'Geometry should be a linestring.';
+    IF row.type <> 'ST_LineString' THEN
+        RAISE EXCEPTION 'Geometry should be a linestring.';
     END IF;
     
     -- Searching through all points in given line
@@ -249,62 +286,73 @@ BEGIN
     i:= 0;
     
     LOOP
-	i:=i+1;
+    i:=i+1;
 
         -- Getting nearest node to the current point
-	
-	FOR row in EXECUTE 'select * from find_nearest_node_within_distance(''POINT('
-			    ||x(PointN(line, i))||' '||y(PointN(line, i))||')'','||distance||', '''||tbl||''') as id'
-	LOOP
-	END LOOP;
-	
-	IF row.id IS NOT NULL THEN
-	    points[i-1]:=row.id;
+    
+    FOR row in EXECUTE 'select * from find_nearest_node_within_distance(''POINT('
+        ||x(PointN(line, i))||' '||y(PointN(line, i))||')'','
+        ||distance||', '''||tbl||''') as id'
+    LOOP
+    END LOOP;
+    
+    IF row.id IS NOT NULL THEN
+        points[i-1]:=row.id;
 
-        ELSE 
-	
-	    -- If there is no nearest node within given distance, let's try another algorithm
-	
-            FOR row in EXECUTE 'select * from find_node_by_nearest_link_within_distance(''POINT('
-	    		        ||x(PointN(line, i))||' '||y(PointN(line, i))||')'','||distance2||', '''||tbl||''') as id'
-	    LOOP
-	    END LOOP;
+    ELSE 
+        --
+        -- If there is no nearest node within given distance, 
+        -- let's try another algorithm
+        --
+        FOR row in EXECUTE 'select * from ' 
+            ||'find_node_by_nearest_link_within_distance(''POINT('
+            ||x(PointN(line, i))||' '||y(PointN(line, i))||')'','
+            ||distance2||', '''||tbl||''') as id'
+        LOOP
+        END LOOP;
 
-	    points[i-1]:=row.id;
+        points[i-1]:=row.id;
 
-        END IF;
+    END IF;
 
-	IF i>1 AND points[i-2] <> points[i-1] THEN
-	
-	    -- We could find existing edge, so let's construct the main query now
-	
-	    query := 'select gid, the_geom FROM shortest_path( ''select gid as id, source::integer,'||
-				' target::integer, length::double precision as cost,x1,x2,y1,y2';
-				
-	    IF rc THEN query := query || ', reverse_cost'; 
-	    END IF;				
-				
-	    query := query || ' from '||quote_ident(tbl)||' where setsrid(''''BOX3D('||x(PointN(line, i-1))-distance2*2||' '
-				||y(PointN(line, i-1))-distance2*2||', '||x(PointN(line, i))+distance2*2||' '
-				||y(PointN(line, i))+distance2*2||')''''::BOX3D, '||srid||')&&the_geom'', '
-				|| points[i-1] ||', '||	points[i-2] ||', '''||dir||''', '''||rc||'''), '
-				||quote_ident(tbl)||' where edge_id=gid';
-	    FOR row IN EXECUTE query
-	    LOOP
+    IF i>1 AND points[i-2] <> points[i-1] THEN
+    
+        --
+        -- We could find existing edge, so let's construct the main query now
+        --
+        query := 'select gid, the_geom FROM '
+            ||'shortest_path( ''select gid as id, source::integer,'
+            ||' target::integer, length::double precision as cost,x1,x2,y1,y2';
+                
+        IF rc THEN 
+            query := query || ', reverse_cost'; 
+        END IF;             
+                
+        query := query || ' from '||quote_ident(tbl)
+            ||' where setsrid(''''BOX3D('||x(PointN(line, i-1))-distance2*2
+            ||' '||y(PointN(line, i-1))-distance2*2||', '
+            ||x(PointN(line, i))+distance2*2||' '
+            ||y(PointN(line, i))+distance2*2||')''''::BOX3D, '
+            ||srid||')&&the_geom'', '
+            || points[i-1] ||', '|| points[i-2] ||', '''
+            ||dir||''', '''||rc||'''), '
+            ||quote_ident(tbl)||' where edge_id=gid';
+        FOR row IN EXECUTE query
+        LOOP
 
-		geom.gid := row.gid;
-		geom.the_geom := row.the_geom;
-		
-		RETURN NEXT geom;
-		
-	    END LOOP;
+        geom.gid      := row.gid;
+        geom.the_geom := row.the_geom;
+        
+        RETURN NEXT geom;
+        
+        END LOOP;
 
-	END IF;															
+    END IF;                                                         
 
 
-	EXIT WHEN i=num;
-	
-	
+    EXIT WHEN i=num;
+    
+    
     END LOOP;    
     
     RETURN;
@@ -325,9 +373,10 @@ LANGUAGE 'plpgsql' VOLATILE STRICT;
 -- rc - true if you have a reverse_cost column
 -------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION match_line(tbl varchar, line geometry, distance double precision, 
-						distance2 double precision, dir boolean, rc boolean)
-	RETURNS SETOF PATH_RESULT AS
+CREATE OR REPLACE FUNCTION match_line(tbl varchar, line geometry, 
+    distance double precision,distance2 double precision, 
+    dir boolean, rc boolean)
+    RETURNS SETOF PATH_RESULT AS
 $$
 DECLARE
     row record;
@@ -353,15 +402,18 @@ DECLARE
 
 BEGIN
 
-    FOR row IN EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' LOOP
-    END LOOP;
-	srid:= row.srid;
-
-    FOR row IN EXECUTE 'select geometryType(GeometryFromText('''||astext(line)||''', '||srid||')) as type' LOOP
+    FOR row IN EXECUTE 'select st_srid(the_geom) as srid from '
+        ||tbl||' limit 1' LOOP
     END LOOP;
     
-    IF row.type <> 'LINESTRING' THEN
-	RAISE EXCEPTION 'Geometry should be a linestring.';
+    srid:= row.srid;
+
+    FOR row IN EXECUTE 'select st_geometryType(st_GeometryFromText('''
+      ||astext(line)||''', '||srid||')) as type' LOOP
+    END LOOP;
+    
+    IF row.type <> 'ST_LineString' THEN
+        RAISE EXCEPTION 'Geometry should be a linestring.';
     END IF;
 
     num:=NumPoints(line);
@@ -372,116 +424,129 @@ BEGIN
     -- Searching through all points in given line
 
     LOOP
-	i:=i+1;
+        i:=i+1;
 
         -- Getting nearest node to the current point
 
         FOR row in EXECUTE 'select * from find_nearest_node_within_distance(''POINT('
-			    ||x(PointN(line, i))||' '||y(PointN(line, i))||')'','||distance||', '''||tbl||''') as id'
-	LOOP
-	END LOOP;
-	
+                ||x(st_PointN(line, i))||' '||y(st_PointN(line, i))||')'','
+                ||distance||', '''||tbl||''') as id'
+        LOOP
+        END LOOP;
+    
 
-	IF row.id IS NOT NULL THEN
-	    points[i-1]:=row.id;
-
+        IF row.id IS NOT NULL THEN
+            points[i-1]:=row.id;
         ELSE 
 
-	    -- If there is no nearest node within given distance, let's try another algorithm
+        -- If there is no nearest node within given distance, let's try another algorithm
 
-            FOR row in EXECUTE 'select * from find_node_by_nearest_link_within_distance(''POINT('
-	    		        ||x(PointN(line, i))||' '||y(PointN(line, i))||')'','||distance2||', '''||tbl||''') as id'
-	    LOOP
-	    END LOOP;
+            FOR row in EXECUTE 'select * from '
+                ||'find_node_by_nearest_link_within_distance(''POINT('
+                ||x(st_PointN(line, i))||' '
+                ||y(st_PointN(line, i))||')'','
+                ||distance2||', '''||tbl||''') as id'
+            LOOP
+            END LOOP;
 
-	    points[i-1]:=row.id;
+            points[i-1]:=row.id;
+            
             IF row.id = -1 THEN
                 return;
             END IF;
 
         END IF;
 
-	IF i>1 AND points[i-2] <> points[i-1] THEN
-	
-	    -- We could find existing edge, so let's construct the main query now
+        IF i>1 AND points[i-2] <> points[i-1] THEN
+    
+        -- We could find existing edge, so let's construct the main query now
 
-	    query := 'select edge_id, vertex_id, cost FROM shortest_path( ''select gid as id, source::integer,'||
-				' target::integer, length::double precision as cost,x1,x2,y1,y2 ';
-				
-	    IF rc THEN query := query || ', reverse_cost'; 
-	    END IF;
-	    
-	    query := query || ' from '||quote_ident(tbl)||' where setsrid(''''BOX3D('||x(PointN(line, i-1))-distance2*2||' '
-				||y(PointN(line, i-1))-distance2*2||', '||x(PointN(line, i))+distance2*2||' '
-				||y(PointN(line, i))+distance2*2||')''''::BOX3D, '||srid||')&&the_geom'', '
-				|| points[i-1] ||', '||	points[i-2] ||', '''||dir||''', '''||rc||''')';
+        query := 'select edge_id, vertex_id, cost FROM shortest_path('
+          ||' ''select gid as id, source::integer,'
+          ||' target::integer, length::double precision as cost,x1,x2,y1,y2 ';
+                
+        IF rc THEN 
+            query := query || ', reverse_cost'; 
+        END IF;
+        
+        query := query || ' from '||quote_ident(tbl)
+            ||' where setsrid(''''BOX3D('
+            ||x(PointN(line, i-1))-distance2*2||' '
+            ||y(PointN(line, i-1))-distance2*2||', '
+            ||x(PointN(line, i))+distance2*2||' '
+            ||y(PointN(line, i))+distance2*2||')''''::BOX3D, '
+            ||srid||')&&the_geom'', '
+            || points[i-1] ||', '|| points[i-2] 
+            ||', '''||dir||''', '''||rc||''')';
 
-	    
-	    BEGIN
-	    
-	    FOR row IN EXECUTE query
-	    LOOP
-	    
-	    
-		IF row IS NULL THEN
-		    RAISE NOTICE 'Cannot find a path between % and %', points[i-1], points[i-2];
-	    	    RETURN;
-		END IF;
+        
+        BEGIN
+        
+        FOR row IN EXECUTE query
+        LOOP
+        
+        IF row IS NULL THEN
+            RAISE NOTICE 'Cannot find a path between % and %', points[i-1], points[i-2];
+                RETURN;
+        END IF;
 
-		edges[z] := row.edge_id;
-		vertices[z] := row.vertex_id;
-		costs[z] := row.cost;
-		
-		IF edges[z] = -1 THEN
-		
-		    t := 0;
-		    
-		    -- Ordering edges
-		    
-		    FOR t IN (prev+1)..z-1 LOOP
-		    
-			path.edge_id := edges[t];
-			path.vertex_id := vertices[t];
-			path.cost = costs[t];
-			
-			edges[t] := edges[z-t+prev+1];
-			vertices[t] := vertices[z-t+prev+1];
-			costs[t] := costs[z-t+prev+1];
+        edges[z]    := row.edge_id;
+        vertices[z] := row.vertex_id;
+        costs[z]    := row.cost;
+        
+        IF edges[z] = -1 THEN
+        
+            t := 0;
+            
+            -- Ordering edges
+            
+            FOR t IN (prev+1)..z-1 LOOP
+            
+            path.edge_id   := edges[t];
+            path.vertex_id := vertices[t];
+            path.cost      := costs[t];
+            
+            edges[t]    := edges[z-t+prev+1];
+            vertices[t] := vertices[z-t+prev+1];
+            costs[t]    := costs[z-t+prev+1];
 
-			edges[z-t+prev+1] := path.edge_id;
-			vertices[z-t+prev+1] := path.vertex_id;
-			costs[z-t+prev+1] := path.cost;
-			
-					    
-		    END LOOP;
-		    
-		    prev := z;
+            edges[z-t+prev+1]    := path.edge_id;
+            vertices[z-t+prev+1] := path.vertex_id;
+            costs[z-t+prev+1]    := path.cost;
+            
+                        
+            END LOOP;
+            
+            prev := z;
 
-		END IF;	
-		
-		z := z+1;
-		
-	    END LOOP;
-	    
-	    EXCEPTION
-		WHEN containing_sql_not_permitted THEN RETURN;
-	    
-	    END;
+        END IF; 
+        
+        z := z+1;
+        
+        END LOOP;
+        
+        EXCEPTION
+            WHEN containing_sql_not_permitted THEN RETURN;
+        
+        END;
 
-	END IF;															
+    END IF;                                                         
 
-	EXIT WHEN i=num;
-	
+    EXIT WHEN i=num;
+    
     END LOOP;    
 
     FOR t IN 0..array_upper(edges, 1) LOOP
     
-	IF edges[array_upper(edges, 1)-t] > 0 OR (edges[array_upper(edges, 1)-t] < 0 AND t = array_upper(edges, 1)) THEN
-	path.edge_id := edges[array_upper(edges, 1)-t];
-	path.vertex_id := vertices[array_upper(edges, 1)-t];
-	path.cost = costs[array_upper(edges, 1)-t];
-	RETURN NEXT path;	
-	END IF;
+    IF edges[array_upper(edges, 1)-t] > 0 OR 
+        (edges[array_upper(edges, 1)-t] < 0 AND 
+        t = array_upper(edges, 1)) THEN
+    
+        path.edge_id   := edges[array_upper(edges, 1)-t];
+        path.vertex_id := vertices[array_upper(edges, 1)-t];
+        path.cost      := costs[array_upper(edges, 1)-t];
+    RETURN NEXT path;   
+    END IF;
     END LOOP;
     
     RETURN;
@@ -502,9 +567,9 @@ LANGUAGE 'plpgsql' VOLATILE STRICT;
 -- rc - true if you have a reverse_cost column
 -------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION match_line_as_linestring(tbl varchar, line geometry, distance double precision, 
-						distance2 double precision, dir boolean, rc boolean)
-	RETURNS GEOMETRY AS
+CREATE OR REPLACE FUNCTION match_line_as_linestring(tbl varchar, line geometry, 
+  distance double precision, 
+  distance2 double precision, dir boolean, rc boolean) RETURNS GEOMETRY AS
 $$
 DECLARE
     row record;
@@ -517,37 +582,46 @@ DECLARE
     
 BEGIN
 
-    FOR row IN EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' LOOP
+    FOR row IN EXECUTE 'select st_srid(the_geom) as srid from '
+      ||tbl||' where gid = (select min(gid) from '||tbl||')' LOOP
     END LOOP;
-	srid:= row.srid;
+    srid:= row.srid;
 
-    FOR row IN EXECUTE 'select geometryType(GeometryFromText('''||astext(line)||''', '||srid||')) as type' LOOP
+    FOR row IN EXECUTE 'select st_geometryType(st_GeometryFromText('''
+      ||st_astext(line)||''', '||srid||')) as type' LOOP
     END LOOP;
     
     IF row.type <> 'LINESTRING' THEN
-	RAISE EXCEPTION 'Geometry should be a linestring.';
+    RAISE EXCEPTION 'Geometry should be a linestring.';
     END IF;
 
     i := 0;
     
-    FOR row IN EXECUTE 'select * from match_line('''||quote_ident(tbl)||''', GeometryFromText('''||astext(line)||''', '||srid||'), '
-			    ||distance||', '||distance2||', '''||dir||''', '''||rc||''')' LOOP
-	edges[i] := row.edge_id;
-	i := i + 1;
+    FOR row IN EXECUTE 'select * from match_line('''
+      ||quote_ident(tbl)||''', st_GeometryFromText('''||astext(line)
+      ||''', '||srid||'), '||distance||', '||distance2||', '''
+      ||dir||''', '''||rc||''')' LOOP
+    
+      edges[i] := row.edge_id;
+      i := i + 1;
     END LOOP;
+    
     IF i = 0 THEN
         return NULL;
     END IF;
 
     -- Attempt to create a single linestring. It may return multilinestring as well.
 
-    FOR row IN EXECUTE 'select linemerge(geomunion(multi(the_geom))) as the_geom from '||tbl||' where gid in ('||array_to_string(edges, ', ')||') and gid > 0' LOOP
+    FOR row IN EXECUTE 'select st_linemerge'
+        ||'(st_union(st_multi(the_geom))) as the_geom from '
+        ||tbl||' where gid in ('||array_to_string(edges, ', ')
+        ||') and gid > 0' LOOP
     END LOOP;
     
     IF isvalid(row.the_geom) THEN
         RETURN row.the_geom;
     ELSE
-	RAISE EXCEPTION 'The result is not a valid geometry.';
+        RAISE EXCEPTION 'The result is not a valid geometry.';
     END IF;
 
 END;

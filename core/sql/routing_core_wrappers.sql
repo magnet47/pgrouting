@@ -19,6 +19,26 @@
 
 -- BEGIN;
 
+
+CREATE OR REPLACE FUNCTION pgr_startpoint(line geometry)
+    returns geometry as
+$body$
+DECLARE
+    pnt geometry;
+BEGIN
+ if st_geometrytype(line) = 'ST_LineString' then
+     pnt := st_startpoint(line);
+ elsif st_geometrytype(line) = 'ST_MultiLineString' then
+   pnt := st_startpoint(st_geometryn(line,1));
+ else
+   return null;
+ end if;
+ return pnt;
+END;
+$body$
+LANGUAGE 'plpgsql' STABLE;
+ 
+
 CREATE OR REPLACE FUNCTION text(boolean)
        RETURNS text AS
 $$
@@ -260,7 +280,7 @@ LANGUAGE 'plpgsql' VOLATILE STRICT;
 --  the result as a set of (gid integer, the_geom geometry) records.
 -- Also data clipping added to improve function performance.
 --
--- Last changes: 14.02.2008
+-- Last changes: July 02, 2012
 -----------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION astar_sp_delta_directed(
        varchar,int4, int4, float8, boolean, boolean) 
@@ -274,15 +294,16 @@ DECLARE
 	dir        ALIAS FOR $5;
 	rc         ALIAS FOR $6;
 
-	rec record;
-	r record;
-        path_result record;
-        v_id integer;
-        e_id integer;
-        geom geoms;
+	r           record;
+	rec         record;
+    path_result record;
+    
+    v_id integer;
+    e_id integer;
+    srid integer;
+    
+    geom geoms;
 	
-	srid integer;
-
 	source_x float8;
 	source_y float8;
 	target_x float8;
@@ -299,23 +320,26 @@ DECLARE
 BEGIN
 	
 	id :=0;
+	
 	FOR rec IN EXECUTE
-	    'select srid(the_geom) from ' ||
+	    'select st_srid(the_geom) as srid from ' ||
 	    quote_ident(geom_table) || ' limit 1'
 	LOOP
 	END LOOP;
+	
 	srid := rec.srid;
 	
 	FOR rec IN EXECUTE 
-            'select x(startpoint(the_geom)) as source_x from ' || 
+            'select st_x(pgr_startpoint(the_geom)) as source_x from ' || 
             quote_ident(geom_table) || ' where source = ' || 
             sourceid ||  ' or target='||sourceid||' limit 1'
         LOOP
 	END LOOP;
+	
 	source_x := rec.source_x;
 	
 	FOR rec IN EXECUTE 
-            'select y(startpoint(the_geom)) as source_y from ' || 
+            'select st_y(pgr_startpoint(the_geom)) as source_y from ' || 
             quote_ident(geom_table) || ' where source = ' || 
             sourceid ||  ' or target='||sourceid||' limit 1'
         LOOP
@@ -324,7 +348,7 @@ BEGIN
 	source_y := rec.source_y;
 
 	FOR rec IN EXECUTE 
-            'select x(startpoint(the_geom)) as target_x from ' ||
+            'select st_x(pgr_startpoint(the_geom)) as target_x from ' ||
             quote_ident(geom_table) || ' where source = ' || 
             targetid ||  ' or target='||targetid||' limit 1'
         LOOP
@@ -333,7 +357,7 @@ BEGIN
 	target_x := rec.target_x;
 	
 	FOR rec IN EXECUTE 
-            'select y(startpoint(the_geom)) as target_y from ' || 
+            'select st_y(pgr_startpoint(the_geom)) as target_y from ' || 
             quote_ident(geom_table) || ' where source = ' || 
             targetid ||  ' or target='||targetid||' limit 1'
         LOOP
@@ -362,9 +386,9 @@ BEGIN
 	ll_y := rec.ll_y;
 	ur_y := rec.ur_y;
 
-	query := 'SELECT gid,the_geom FROM ' || 
-          'shortest_path_astar(''SELECT gid as id, source::integer, ' || 
-          'target::integer, length::double precision as cost, ' || 
+	query := 'SELECT id,the_geom FROM ' || 
+          'shortest_path_astar(''SELECT id as id, source::integer, ' || 
+          'target::integer, cost::double precision as cost, ' || 
           'x1::double precision, y1::double precision, x2::double ' ||
           'precision, y2::double precision ';
 	  
@@ -372,18 +396,18 @@ BEGIN
 	END IF;
 	  
 	query := query || 'FROM ' || quote_ident(geom_table) || 
-	      ' where setSRID(''''BOX3D('||
+	      ' where st_setSRID(''''BOX3D('||
           ll_x-delta||' '|| ll_y-delta||','||
           ur_x+delta||' '|| ur_y+delta||')''''::BOX3D, ' || 
           srid || ') && the_geom'', ' || 
           quote_literal(sourceid) || ' , ' || 
           quote_literal(targetid) || ' , '''||
           text(dir)||''', '''||text(rc)||''' ),' || 
-          quote_ident(geom_table) || ' where edge_id = gid ';
+          quote_ident(geom_table) || ' where edge_id = id ';
 	  
 	FOR path_result IN EXECUTE query
         LOOP
-            geom.gid      := path_result.gid;
+            geom.gid      := path_result.id;
             geom.the_geom := path_result.the_geom;
 		    id            := id+1;
 		    geom.id       := id;
@@ -417,12 +441,14 @@ DECLARE
 	delta       ALIAS FOR $4;
 	cost_column ALIAS FOR $5;
 
-	rec record;
-	r record;
-        path_result record;
-        v_id integer;
-        e_id integer;
-        geom geoms;
+	r           record;
+	rec         record;
+    path_result record;
+    
+    v_id integer;
+    e_id integer;
+    
+    geom geoms;
 	
 	id integer;
 BEGIN
@@ -457,7 +483,7 @@ LANGUAGE 'plpgsql' VOLATILE STRICT;
 -- Also data clipping added to improve function performance.
 -- Cost column name can be specified (last parameter)
 --
--- Last changes: 14.02.2008
+-- Last changes: July 02, 2012
 -----------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION astar_sp_delta_cc_directed(
        varchar,int4, int4, float8, varchar, boolean, boolean) 
@@ -472,15 +498,16 @@ DECLARE
 	dir         ALIAS FOR $6;
 	rc          ALIAS FOR $7;
 
-	rec record;
-	r record;
-        path_result record;
-        v_id integer;
-        e_id integer;
-        geom geoms;
+	r           record;
+	rec         record;
+    path_result record;
+    
+    v_id integer;
+    e_id integer;
+    srid integer;
+    
+    geom geoms;
 	
-	srid integer;
-
 	source_x float8;
 	source_y float8;
 	target_x float8;
@@ -498,14 +525,14 @@ BEGIN
 	
 	id :=0;
 	FOR rec IN EXECUTE
-	    'select srid(the_geom) from ' ||
+	    'select st_srid(the_geom) as srid from ' ||
 	    quote_ident(geom_table) || ' limit 1'
 	LOOP
 	END LOOP;
 	srid := rec.srid;
 	
 	FOR rec IN EXECUTE 
-            'select x(startpoint(the_geom)) as source_x from ' || 
+            'select st_x(pgr_startpoint(the_geom)) as source_x from ' || 
             quote_ident(geom_table) || ' where source = ' || 
             sourceid || ' or target='||sourceid||' limit 1'
         LOOP
@@ -513,7 +540,7 @@ BEGIN
 	source_x := rec.source_x;
 	
 	FOR rec IN EXECUTE 
-            'select y(startpoint(the_geom)) as source_y from ' || 
+            'select st_y(pgr_startpoint(the_geom)) as source_y from ' || 
             quote_ident(geom_table) || ' where source = ' || 
             sourceid ||  ' or target='||sourceid||' limit 1'
         LOOP
@@ -522,7 +549,7 @@ BEGIN
 	source_y := rec.source_y;
 
 	FOR rec IN EXECUTE 
-            'select x(startpoint(the_geom)) as target_x from ' ||
+            'select st_x(pgr_startpoint(the_geom)) as target_x from ' ||
             quote_ident(geom_table) || ' where source = ' || 
             targetid ||  ' or target='||targetid||' limit 1'
         LOOP
@@ -531,7 +558,7 @@ BEGIN
 	target_x := rec.target_x;
 	
 	FOR rec IN EXECUTE 
-            'select y(startpoint(the_geom)) as target_y from ' || 
+            'select st_y(pgr_startpoint(the_geom)) as target_y from ' || 
             quote_ident(geom_table) || ' where source = ' || 
             targetid ||  ' or target='||targetid||' limit 1'
         LOOP
@@ -560,8 +587,8 @@ BEGIN
 	ll_y := rec.ll_y;
 	ur_y := rec.ur_y;
 
-	query := 'SELECT gid,the_geom FROM ' || 
-          'shortest_path_astar(''SELECT gid as id, source::integer, ' || 
+	query := 'SELECT id,the_geom FROM ' || 
+          'shortest_path_astar(''SELECT id as id, source::integer, ' || 
           'target::integer, '||cost_column||'::double precision as cost, ' || 
           'x1::double precision, y1::double precision, x2::double ' ||
           'precision, y2::double precision ';
@@ -570,18 +597,18 @@ BEGIN
 	END IF;
 	  
 	query := query || 'FROM ' || quote_ident(geom_table) || 
-	      ' where setSRID(''''BOX3D('||
+	      ' where st_setSRID(''''BOX3D('||
           ll_x-delta||' '||ll_y-delta||','||ur_x+delta||' '||
           ur_y+delta||')''''::BOX3D, ' || srid || ') && the_geom'', ' || 
           quote_literal(sourceid) || ' , ' || 
           quote_literal(targetid) || ' , '''||
           text(dir)||''', '''||text(rc)||''' ),' || 
-          quote_ident(geom_table) || ' where edge_id = gid ';
+          quote_ident(geom_table) || ' where edge_id = id ';
 	
 	FOR path_result IN EXECUTE query
         LOOP
 
-         geom.gid      := path_result.gid;
+         geom.gid      := path_result.id;
          geom.the_geom := path_result.the_geom;
 		 id            := id+1;
 		 geom.id       := id;
@@ -613,20 +640,22 @@ DECLARE
 	targetid   ALIAS FOR $3;
 	delta      ALIAS FOR $4;
 
-	rec record;
-	r record;
-        path_result record;
-        v_id integer;
-        e_id integer;
-        geom geoms;
+	r           record;
+	rec         record;
+    path_result record;
+    
+    id   integer;
+    v_id integer;
+    e_id integer;
+    
+    geom geoms;
 	
-	id integer;
 BEGIN
 	
 	id :=0;
 	
 	FOR path_result IN EXECUTE 'SELECT gid,the_geom FROM ' || 
-           'dijkstra_sp_delta_directed(''' || 
+           'dijkstra_sp_delta_directed('''   || 
            quote_ident(geom_table) || ''', ' || 
            quote_literal(sourceid) || ', ' || 
 	       quote_literal(targetid) || ', ' || delta || ', false, false)'
@@ -657,22 +686,24 @@ CREATE OR REPLACE FUNCTION dijkstra_sp_delta_directed(
        RETURNS SETOF GEOMS AS
 $$
 DECLARE 
-        geom_table ALIAS FOR $1;
-	sourceid ALIAS FOR $2;
-	targetid ALIAS FOR $3;
-	delta ALIAS FOR $4;
-	dir ALIAS FOR $5;
-	rc ALIAS FOR $6;
+    geom_table ALIAS FOR $1;
+	sourceid   ALIAS FOR $2;
+	targetid   ALIAS FOR $3;
+	delta      ALIAS FOR $4;
+	dir        ALIAS FOR $5;
+	rc         ALIAS FOR $6;
 
-	rec record;
-	r record;
-        path_result record;
-        v_id integer;
-        e_id integer;
-        geom geoms;
+	r           record;
+	rec         record;
+    path_result record;
+    
+    id   integer;
+    v_id integer;
+    e_id integer;
+    srid integer;
+    
+    geom geoms;
 	
-	srid integer;
-
 	source_x float8;
 	source_y float8;
 	target_x float8;
@@ -684,19 +715,19 @@ DECLARE
 	ur_y float8;
 	
 	query text;
-	id integer;
+	
 BEGIN
 	
 	id :=0;
 	FOR rec IN EXECUTE
-	    'select srid(the_geom) from ' ||
+	    'select st_srid(the_geom) as srid from ' ||
 	    quote_ident(geom_table) || ' limit 1'
 	LOOP
 	END LOOP;
 	srid := rec.srid;
 
 	FOR rec IN EXECUTE 
-            'select x(startpoint(the_geom)) as source_x from ' || 
+            'select st_x(pgr_startpoint(the_geom)) as source_x from ' || 
             quote_ident(geom_table) || ' where source = ' || 
             sourceid ||  ' or target='||sourceid||' limit 1'
         LOOP
@@ -704,7 +735,7 @@ BEGIN
 	source_x := rec.source_x;
 	
 	FOR rec IN EXECUTE 
-            'select y(startpoint(the_geom)) as source_y from ' || 
+            'select st_y(pgr_startpoint(the_geom)) as source_y from ' || 
             quote_ident(geom_table) || ' where source = ' || 
             sourceid ||  ' or target='||sourceid||' limit 1'
         LOOP
@@ -713,7 +744,7 @@ BEGIN
 	source_y := rec.source_y;
 
 	FOR rec IN EXECUTE 
-            'select x(startpoint(the_geom)) as target_x from ' ||
+            'select st_x(pgr_startpoint(the_geom)) as target_x from ' ||
             quote_ident(geom_table) || ' where source = ' || 
             targetid ||  ' or target='||targetid||' limit 1'
         LOOP
@@ -722,7 +753,7 @@ BEGIN
 	target_x := rec.target_x;
 	
 	FOR rec IN EXECUTE 
-            'select y(startpoint(the_geom)) as target_y from ' || 
+            'select st_y(pgr_startpoint(the_geom)) as target_y from ' || 
             quote_ident(geom_table) || ' where source = ' || 
             targetid ||  ' or target='||targetid||' limit 1'
         LOOP
@@ -751,8 +782,8 @@ BEGIN
 	ll_y := rec.ll_y;
 	ur_y := rec.ur_y;
 
-	query := 'SELECT gid,the_geom FROM ' || 
-          'shortest_path(''SELECT gid as id, ' || 
+	query := 'SELECT id,the_geom FROM ' || 
+          'shortest_path(''SELECT id as id, ' || 
           'source::integer, target::integer, ' || 
           'length::double precision as cost ';
 	  
@@ -760,7 +791,7 @@ BEGIN
 	END IF;
 
 	query := query || ' FROM ' || quote_ident(geom_table) || 
-	      ' where setSRID(''''BOX3D(' ||
+	      ' where st_setSRID(''''BOX3D(' ||
           ll_x-delta||' '|| ll_y-delta ||',' ||
           ur_x+delta||' '|| ur_y+delta ||')''''::BOX3D, ' || 
           srid || ') && the_geom'', ' || 
@@ -768,12 +799,12 @@ BEGIN
           quote_literal(targetid) || ' , '''||
           text(dir)||''', '''||
           text(rc )||''' ), ' ||
-          quote_ident(geom_table) || ' where edge_id = gid ';
+          quote_ident(geom_table) || ' where edge_id = id ';
 	  
 	FOR path_result IN EXECUTE query
         LOOP
                  
-        geom.gid      := path_result.gid;
+        geom.gid      := path_result.id;
         geom.the_geom := path_result.the_geom;
 		id            := id+1;
 		geom.id       := id;
