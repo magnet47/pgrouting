@@ -73,16 +73,17 @@ DECLARE
     row record;
     x float8;
     y float8;
+    
     d1 double precision;
     d2 double precision;
     d  double precision;
+    
     field varchar;
 
-    node integer;
+    node   integer;
     source integer;
     target integer;
-    
-    srid integer;
+    srid   integer;
     
 BEGIN
 
@@ -93,12 +94,13 @@ BEGIN
 
     -- Getting x and y of the point
 
-    FOR row in EXECUTE 'select x(st_GeometryFromText('''||point||''', '
+    FOR row in EXECUTE 'select st_x(st_GeometryFromText('''||point||''', '
         ||srid||')) as x' LOOP
     END LOOP;
+    
     x:=row.x;
 
-    FOR row in EXECUTE 'select y(st_GeometryFromText('''||point
+    FOR row in EXECUTE 'select st_y(st_GeometryFromText('''||point
         ||''', '||srid||')) as y' LOOP
     END LOOP;
     y:=row.y;
@@ -107,7 +109,8 @@ BEGIN
 
     FOR row in EXECUTE 'select source, st_distance('
        ||'st_StartPoint(st_GeometryN(the_geom,1)), st_GeometryFromText('''
-       ||point||''', '||srid||')) as dist from '||tbl||' where setsrid(''BOX3D('
+       ||point||''', '||srid||')) as dist from '||tbl
+       ||' where st_setsrid(''BOX3D('
        ||x-distance||' '||y-distance||', '||x+distance||' '||y+distance
        ||')''::BOX3D, '||srid||')&&the_geom order by dist asc limit 1'
     LOOP
@@ -120,7 +123,8 @@ BEGIN
 
     FOR row in EXECUTE 'select target, st_distance('
        ||'st_EndPoint(st_GeometryN(the_geom,1)), st_GeometryFromText('''
-       ||point||''', '||srid||')) as dist from '||tbl||' where setsrid(''BOX3D('
+       ||point||''', '||srid||')) as dist from '||tbl
+       ||' where st_setsrid(''BOX3D('
        ||x-distance||' '||y-distance||', '||x+distance||' '||y+distance
        ||')''::BOX3D, '||srid||')&&the_geom order by dist asc limit 1'
     LOOP
@@ -132,10 +136,10 @@ BEGIN
     target:=row.target;
     
     IF d1<d2 THEN
-    node:=source;
+        node:=source;
         d:=d1;
     ELSE
-    node:=target;
+        node:=target;
         d:=d2;
     END IF;
 
@@ -177,8 +181,8 @@ BEGIN
     FOR row IN EXECUTE 'select st_srid(the_geom) as srid from '||tbl
         ||' limit 1' LOOP
     END LOOP;
+    
     srid:= row.srid;
-
 
     -- Searching for a nearest link
     
@@ -225,7 +229,7 @@ BEGIN
     LOOP
     END LOOP;
         
-    res.id:=row.id;
+    res.id  :=row.id;
     res.name:=row.f;
     
     RETURN res;
@@ -439,8 +443,10 @@ BEGIN
             points[i-1]:=row.id;
         ELSE 
 
-        -- If there is no nearest node within given distance, let's try another algorithm
-
+        --
+        -- If there is no nearest node within given distance, 
+        -- let's try another algorithm
+        --
             FOR row in EXECUTE 'select * from '
                 ||'find_node_by_nearest_link_within_distance(''POINT('
                 ||x(st_PointN(line, i))||' '
@@ -486,8 +492,10 @@ BEGIN
         LOOP
         
         IF row IS NULL THEN
-            RAISE NOTICE 'Cannot find a path between % and %', points[i-1], points[i-2];
-                RETURN;
+            RAISE NOTICE 'Cannot find a path between % and %', 
+                points[i-1], points[i-2];
+            
+            RETURN;
         END IF;
 
         edges[z]    := row.edge_id;
