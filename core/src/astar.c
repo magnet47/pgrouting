@@ -29,6 +29,8 @@
 #include <search.h>
 
 #include "astar.h"
+#include "pgr_utils.h"
+
 
 //-------------------------------------------------------------------------
 
@@ -78,32 +80,8 @@ Datum shortest_path_astar(PG_FUNCTION_ARGS);
 #define DBG(format, arg...) do { ; } while (0)
 #endif
 
-// The number of tuples to fetch from the SPI cursor at each iteration
-#define TUPLIMIT 1000
+//-------------------------------------------------------------------------
 
-static char *
-text2char(text *in)
-{
-  char *out = palloc(VARSIZE(in));
-
-  memcpy(out, VARDATA(in), VARSIZE(in) - VARHDRSZ);
-  out[VARSIZE(in) - VARHDRSZ] = '\0';
-  return out;
-}
-
-static int 
-finish(int code, int ret)
-{
-  code = SPI_finish();
-  if (code  != SPI_OK_FINISH )
-    {
-      elog(ERROR,"couldn't disconnect from SPI");
-      return -1 ;
-    }
-  
-  return ret;
-}
-  
 typedef struct edge_astar_columns 
 {
   int id;
