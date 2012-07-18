@@ -37,6 +37,24 @@ BEGIN
 END;
 $body$
 LANGUAGE 'plpgsql' STABLE;
+
+CREATE OR REPLACE FUNCTION pgr_endpoint(line geometry)
+    returns geometry as
+$body$
+DECLARE
+    pnt geometry;
+BEGIN
+ if st_geometrytype(line) = 'ST_LineString' then
+     pnt := st_endpoint(line);
+ elsif st_geometrytype(line) = 'ST_MultiLineString' then
+   pnt := st_endpoint(st_geometryn(line,1));
+ else
+   return null;
+ end if;
+ return pnt;
+END;
+$body$
+LANGUAGE 'plpgsql' STABLE;
  
 
 CREATE OR REPLACE FUNCTION text(boolean)
@@ -1020,7 +1038,8 @@ BEGIN
            'x1::double precision, y1::double precision, ' || 
            'x2::double precision, y2::double precision ';
 	   
-	IF rc THEN query := query || ' , reverse_cost ';
+	IF rc THEN 
+	   query := query || ' , reverse_cost ';
 	END IF;
 
 	query := query || 'FROM ' || quote_ident(geom_table) || ' '', ' || 
