@@ -432,9 +432,10 @@ BEGIN
 
         -- Getting nearest node to the current point
 
-        FOR row in EXECUTE 'select * from find_nearest_node_within_distance(''POINT('
-                ||x(st_PointN(line, i))||' '||y(st_PointN(line, i))||')'','
-                ||distance||', '''||tbl||''') as id'
+        FOR row in EXECUTE 
+            'select * from find_nearest_node_within_distance(''POINT('
+            ||x(st_PointN(line, i))||' '||y(st_PointN(line, i))||')'','
+            ||distance||', '''||tbl||''') as id'
         LOOP
         END LOOP;
     
@@ -618,7 +619,8 @@ BEGIN
         return NULL;
     END IF;
 
-    -- Attempt to create a single linestring. It may return multilinestring as well.
+    -- Attempt to create a single linestring. 
+    -- It may return multilinestring as well.
 
     FOR row IN EXECUTE 'select st_linemerge'
         ||'(st_union(st_multi(the_geom))) as the_geom from '
