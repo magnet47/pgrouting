@@ -25,7 +25,7 @@
 #include <boost/graph/breadth_first_search.hpp>
 
 #include <queue>
-#include "edge_visitors.hpp"
+#include "shooting_star_edge_visitors.hpp"
 
 template <class Edge>
 struct EdgeRankCompare 

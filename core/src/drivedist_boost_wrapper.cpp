@@ -34,13 +34,13 @@ using namespace boost;
 // Maximal number of nodes in the path (to avoid infinite loops)
 #define MAX_NODES 1000000
 
-struct Edge
+struct Edge_dd
 {
   int id;
   float8 cost;
 };
 
-struct Vertex
+struct Vertex_dd
 {
   int id;
   int edge_id;
@@ -48,7 +48,7 @@ struct Vertex
 
 template <class G, class E>
 static void
-graph_add_edge(G &graph, int id, int source, int target, float8 cost)
+graph_add_edge_dd(G &graph, int id, int source, int target, float8 cost)
 {
   E e;
   bool inserted;
@@ -61,9 +61,9 @@ graph_add_edge(G &graph, int id, int source, int target, float8 cost)
   graph[e].cost = cost;
   graph[e].id = id;
 
-  typedef typename graph_traits<G>::vertex_descriptor Vertex;
-  Vertex s = vertex(source, graph);
-  Vertex t = vertex(target, graph);
+  typedef typename graph_traits<G>::vertex_descriptor Vertex_dd;
+  Vertex_dd s = vertex(source, graph);
+  Vertex_dd t = vertex(target, graph);
   graph[s].id = source;
   graph[t].id = target;
   graph[s].edge_id = id;
@@ -76,7 +76,7 @@ boost_dijkstra_dist(edge_t *edges, unsigned int count, int source_vertex_id,
                     double rdistance, bool directed, bool has_reverse_cost,
                     path_element_t **path, int *path_count, char **err_msg) 
 {
-  typedef adjacency_list < listS, vecS, directedS, Vertex, Edge > graph_t;
+  typedef adjacency_list < listS, vecS, directedS, Vertex_dd, Edge_dd > graph_t;
   typedef graph_traits < graph_t >::vertex_descriptor vertex_descriptor;
   typedef graph_traits < graph_t >::edge_descriptor edge_descriptor;
 
@@ -89,7 +89,7 @@ boost_dijkstra_dist(edge_t *edges, unsigned int count, int source_vertex_id,
   
   for (std::size_t j = 0; j < count; ++j)
     {
-      graph_add_edge<graph_t, edge_descriptor>
+      graph_add_edge_dd<graph_t, edge_descriptor>
         (graph, edges[j].id, edges[j].source, 
          edges[j].target, edges[j].cost);      
                                         
@@ -97,13 +97,13 @@ boost_dijkstra_dist(edge_t *edges, unsigned int count, int source_vertex_id,
         {
           if (has_reverse_cost)
             {
-              graph_add_edge<graph_t, edge_descriptor>
+              graph_add_edge_dd<graph_t, edge_descriptor>
                 (graph, edges[j].id, edges[j].target, 
                  edges[j].source, edges[j].reverse_cost);      
             }
           else 
             {
-              graph_add_edge<graph_t, edge_descriptor>
+              graph_add_edge_dd<graph_t, edge_descriptor>
                 (graph, edges[j].id, edges[j].target, 
                  edges[j].source, edges[j].cost);      
             }
@@ -117,7 +117,7 @@ boost_dijkstra_dist(edge_t *edges, unsigned int count, int source_vertex_id,
   
   dijkstra_shortest_paths(graph, source_vertex,
                           predecessor_map(&predecessors[0])
-                          .weight_map(get(&Edge::cost, graph))
+                          .weight_map(get(&Edge_dd::cost, graph))
                           .distance_map(&distances[0]));
 
   
